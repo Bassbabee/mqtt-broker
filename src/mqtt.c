@@ -42,3 +42,34 @@ extern unsigned long long mqtt_decode_length(const unsigned char **buf){
     } while ((c & 128) != 0);
     return value;
 }
+
+static size_t unpack_mqtt_connect(const unsigned char *raw, union mqtt_header *hdr, union mqtt_packet *pkt){
+    struct mqtt_connect connect = { .header = *hdr };
+    pkt->connect = connect;
+    const unsigned char *init = raw;
+
+    size_t len = mqtt_decode_length(&raw);
+
+    // Ignore first 8th bytes
+    raw = init + 8;
+
+    // Get 8 bits for flags 
+    pkt->connect.byte = unpack_u8((const uint8_t **) &raw);
+
+    pkt->connect.payload.keepalive = unpack_u16((const uint8_t **) &raw);
+    
+    uint16_t cid_len = unpack_u16((const uint8_t **) &raw);
+
+    if (cid_len > 0) {
+        pkt->connect.payload.client_id = malloc(cid_len + 1);
+        unpack_bytes((const uint8_t **) &raw, cid_len, pkt->connect.payload.client_id);
+    }
+
+    if (pkt->connect.bits.username == 1)
+        unpack_string16(&raw, &pkt->connect.payload.username);
+    
+    if (pkt->connect.bits.password == 1)
+        unpack_string16(&raw, &pkt->connect.payload.password);
+    
+    return len;
+}
